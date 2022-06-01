@@ -18,21 +18,25 @@ class ScrapeStrongConcordance(object):
 	def __init__(self
 		,driver
 		,search_terms
-		,version
+		,versions
 		,home_page='https://www.eliyah.com/lexicon.html'):
 
 		self.driver = driver
 		self.search_terms = search_terms
-		self.version = version
+		self.bible_book = self.search_terms[0].split(" ")[0]
+		self.versions = versions
 		self.home_page = home_page
-		self.out_dir = Path.joinpath(Path(__file__).resolve().parents[1], 'scraped_docs', self.version)
 
-	def _create_dir(self):
+	def _create_dir(self,version):
 
-		if not os.path.exists(self.out_dir):
+		out_dir = Path.joinpath(Path(__file__).resolve().parents[1], 'scraped_docs', version)
 
-			logging.info(f'Creating dir: {self.out_dir}')
-			os.makedirs(self.out_dir)
+		if not os.path.exists(out_dir):
+
+			logging.info(f'Creating dir: {out_dir}')
+			os.makedirs(out_dir)
+
+		return out_dir
 
 	def _load_home_page(self):
 		
@@ -59,7 +63,7 @@ class ScrapeStrongConcordance(object):
 
 		time.sleep(5)
 
-	def _build_dct(self,search_term,version):
+	def _build_dct(self,search_term):
 
 		chp_dct = []
 
@@ -97,10 +101,8 @@ class ScrapeStrongConcordance(object):
 
 				# Initialize dct
 				dct={}
-				dct['bible_version'] = version
-				dct['bible_book'] = search_term.split(" ")[0]
 				dct['bible_chapter'] = search_term.split(" ")[1]
-				dct['bible_verse'] = dct['bible_book'] + verse
+				dct['bible_verse'] = self.bible_book + verse
 
 				# Columns in the table are divs 
 				tcols = trow.findAll('div')
@@ -131,32 +133,56 @@ class ScrapeStrongConcordance(object):
 
 		return chp_dct
 
-	def _iterate_over_search_terms(self):
+	def _iterate_over_search_terms(self,version):
 
 		book_dct = []
 
 		for term in self.search_terms:
 
-			logging.info(f'****** Starting {term}:{self.version} ******')
+			complete = None
 
-			self._search_on_term(term,self.version)
+			while complete == None:
 
-			chp_dct = self._build_dct(term,self.version)
-			book_dct.append(chp_dct)
+				try:
 
-		self.driver.close()
-			
-		bible_book = self.search_terms[0].split(" ")[0]
+					logging.info(f'****** Starting {term}:{version} ******')
+
+					self._search_on_term(term,version)
+
+					chp_dct = self._build_dct(term)
+					book_dct.append(chp_dct)
+
+					complete = 1
+
+				except:
+
+					logging.info(f"Exception! Trying again.")
+					time.sleep(300)
+					continue
+
 		book_dct_df = pd.concat(book_dct).reset_index(drop=True)
-
+		book_dct_df['bible_book'] = self.bible_book
+		book_dct_df['version'] = version
+		
 		# Create version directory if it does not exist yet
-		self._create_dir()
-		book_dct_df.to_csv(Path.joinpath(self.out_dir, f'{bible_book}.csv'),index=False)
+		out_dir = self._create_dir(version)
+		book_dct_df.to_csv(Path.joinpath(out_dir, f'{self.bible_book}.csv'),index=False)
+
+		logging.info(f'Completed {version}. Sleeping for 1 hour :)')
+		time.sleep(3600)
+
+	def _iterate_over_versions(self):
+
+		for version in self.versions:
+
+			logging.info(f'Starting {version}')
+			self._iterate_over_search_terms(version)
 
 	def _run_app(self):
 
-		self._iterate_over_search_terms()
+		self._iterate_over_versions()
 
+		self.driver.close()
 
 
 
