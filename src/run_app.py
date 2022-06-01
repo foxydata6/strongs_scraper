@@ -11,7 +11,6 @@ versions = pd.read_csv(Path.joinpath(Path(__file__).resolve().parents[1], 'docum
 # Convert search_terms / versions to lists
 search_terms = search_terms['search_terms'].tolist()
 versions = versions['versions'].tolist()
-versions = versions[4:]
 
 Scraper = ScrapeStrongConcordance(driver=driver,search_terms=search_terms,versions=versions)
 Scraper._run_app()
